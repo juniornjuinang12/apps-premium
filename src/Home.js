@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, lazy, Suspense } from "react";
 import { Download, Sparkles, Search, X, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -374,8 +374,8 @@ const DOWNLOADS = {
     filename: "BandLab_Premium_v11.8.3.apk",
   },
   [ANDROID_BETTERSLEEP_ID]: {
-    url: "https://www.mediafire.com/file/29x75mp5ed8jcvs/BandLab_Premium_v10.86.1_Modded_by_Getmodpc.apk/file",
-    filename: "BandLab_Premium_v10.86.1.apk", // (si BetterSleep a un lien séparé, remplace ici)
+    url: "https://www.mediafire.com/file/suodqov8by4faf1/BetterSleep_Premium_v25.29_Modded_by_%2540Getmodpcs.apk/file",
+    filename: "BetterSleep_Premium_v25.29.apk", // (si BetterSleep a un lien séparé, remplace ici)
   },
   [ANDROID_CAPCUT_ID]: {
     url: "https://www.mediafire.com/file/nsk79eoysehgpxp/capcut.apk/file",
@@ -602,7 +602,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
   const navigate = useNavigate();
-  const [modalOpen, setModalOpen] = useState(false);
+ const [modalOpen, setModalOpen] = useState(false);
  const [modalApp, setModalApp] = useState(null);
 
  useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }); }, [activeTab]);
@@ -632,6 +632,31 @@ useEffect(() => {
       (app) => normalize(app.nom).includes(q) || normalize(app.desc).includes(q)
     );
 }, [query, dataActif, activeTab]);  // ✅ ajoute activeTab
+
+// Active les animations seulement pour les éléments visibles (après la dispo de `filtered`)
+useEffect(() => {
+  const elements = document.querySelectorAll('[data-observe="card"]');
+  if (!elements.length) return;
+  
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("inview");
+        }
+      });
+    },
+    { root: null, rootMargin: "0px", threshold: 0.1 }
+  );
+  
+  elements.forEach((el) => observer.observe(el));
+  
+  return () => {
+    observer.disconnect();
+    // Nettoyer les classes pour éviter les conflits
+    elements.forEach((el) => el.classList.remove("inview"));
+  };
+}, [activeTab, filtered.length]);
 
 const handleDownload = (app) => { 
   // priorité : mapping direct par id
@@ -721,9 +746,9 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950">
       {/* Animated background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-20 left-40 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-20 left-20 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob gfx-blob"></div>
+        <div className="absolute top-40 right-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000 gfx-blob"></div>
+        <div className="absolute bottom-20 left-40 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000 gfx-blob"></div>
       </div>
 
       {/* Header */}
@@ -801,16 +826,13 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
 
           {/* Apps Grid — 🔁 4 colonnes dès lg */}
           {filtered.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6" style={{ contain: "layout paint style" }}>
               {filtered.map((app, index) => (
                 <div
                   key={`${activeTab}-${app.id}-${app.nom}`}   // ✅ clé unique même si id dupliqué ailleurs
-                  className="group relative"
-                  style={{
-                    animation: `fadeInUp 0.6s ease-out forwards`,
-                    animationDelay: `${index * 0.05}s`,
-                    opacity: 0
-                  }}
+                  className="group relative animate-on-visible"
+                  data-observe="card"
+                  style={{ "--d": `${index * 50}ms` }}
                 >
                   {/* Card glow effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur-xl opacity-0 group-hover:opacity-40 transition-all duration-500"></div>
@@ -857,6 +879,8 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
                               display: "block"
                             }}
                             loading="lazy"
+                            decoding="async"
+                            fetchPriority={index < 8 ? "high" : "low"}
                           />
                         </div>
 
@@ -865,7 +889,8 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
                           className="pointer-events-none absolute inset-0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"
                           style={{
                             borderRadius: "inherit",
-                            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent)"
+                            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.07), transparent)",
+                            willChange: "transform, opacity"
                           }}
                         />
                       </div>
@@ -898,7 +923,7 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
                     </div>
 
                     {/* Shine effect autour de la carte */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ willChange: "opacity" }}>
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
                     </div>
                   </div>
@@ -1023,6 +1048,21 @@ if (activeTab === "pc" && (app.id === 2 || app.id === 10)) {
         .animate-gradient { background-size: 200% auto; animation: gradient 3s linear infinite; }
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* Performance helpers */
+        .gfx-blob { will-change: transform, opacity; contain: paint; }
+        .animate-on-visible { 
+          opacity: 0; 
+          transform: translateY(30px);
+          contain: layout paint style; 
+          will-change: transform, opacity; 
+        }
+        .animate-on-visible.inview { 
+          opacity: 1; 
+          transform: translateY(0);
+          animation: fadeInUp 0.6s ease-out forwards; 
+          animation-delay: var(--d, 0ms); 
+        }
       `}</style>
     </div>
   );
